@@ -75,8 +75,39 @@ def main():
     if not run_command("python scripts/ingest_langchain.py", "Data ingestion"):
         return 1
     
-    # Step 3: Run queries
-    if not run_command("python scripts/query_benchmark.py", "Query benchmarking"):
+    # Step 3: Run LangChain query benchmarking
+    if not run_command(
+        "python scripts/query_benchmark.py --framework langchain --top_k 3",
+        "LangChain query benchmarking"
+    ):
+        return 1
+    # Step 4: Prepare Haystack virtual environment
+    if not Path(".venv-haystack").exists():
+        if not run_command(
+            "python -m venv .venv-haystack",
+            "Creating Haystack virtual environment"
+        ):
+            return 1
+
+    # Step 5: Install Haystack dependencies with inference extras
+    if not run_command(
+        ". .venv-haystack/bin/activate && pip install \"farm-haystack[weaviate,preprocessing,inference]>=1.18.0,<2.0.0\" \"sentence-transformers>=2.2.2,<3.0.0\" \"weaviate-client>=3.26.7,<4.0.0\" \"psutil>=7.0.0,<8.0.0\" \"python-dotenv>=1.1.1,<2.0.0\" \"transformers>=4.26.0,<4.50.0\"",
+        "Installing Haystack dependencies with inference extras (including transformers<4.50.0)"
+    ):
+        return 1
+
+    # Step 5: Run Haystack data ingestion in its virtual environment
+    if not run_command(
+        ". .venv-haystack/bin/activate && python scripts/ingest_haystack.py",
+        "Haystack data ingestion"
+    ):
+        return 1
+
+    # Step 6: Run Haystack query benchmarking in its virtual environment
+    if not run_command(
+        ". .venv-haystack/bin/activate && python scripts/query_benchmark.py --framework haystack --top_k 3",
+        "Haystack query benchmarking"
+    ):
         return 1
     
     # Step 4: Show results summary

@@ -19,13 +19,19 @@ source .venv-py311/bin/activate
 
 ### Run Your Benchmark Scripts
 ```bash
-# Data ingestion
+# Data ingestion (LangChain)
 python scripts/ingest_langchain.py
 
-# Query benchmarking  
-python scripts/query_benchmark.py
+# Query benchmarking (LangChain)
+python scripts/query_benchmark.py --framework langchain --top_k 3
 
-# Complete pipeline
+# Data ingestion (Haystack)
+python scripts/ingest_haystack.py
+
+# Query benchmarking (Haystack)
+python scripts/query_benchmark.py --framework haystack --top_k 3
+
+# Complete end-to-end pipeline
 python run_benchmark.py
 ```
 

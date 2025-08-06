@@ -33,6 +33,7 @@ env.bak/
 venv.bak/
 .venv/
 .venv-py311/
+.venv-haystack/
 
 # IDE
 .vscode/

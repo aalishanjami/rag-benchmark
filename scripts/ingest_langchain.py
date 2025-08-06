@@ -204,3 +204,43 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Custom wrapper for LangChain to use nearVector in Weaviate queries
+class LangchainWeaviateWrapper:
+    def __init__(self, client, embeddings, index_name: str):
+        self.client = client
+        self.embeddings = embeddings
+        self.index_name = index_name
+
+    def similarity_search_with_score(self, query: str, k: int = 3):
+        # Embed the query
+        vector = self.embeddings.embed_query(query)
+        # Build GraphQL query with nearVector
+        qb = (
+            self.client.query.get(self.index_name, ["content"])
+            .with_near_vector({"vector": vector})
+            .with_additional(["certainty"])
+            .with_limit(k)
+        )
+        result = qb.do()
+        objs = result.get("data", {}).get("Get", {}).get(self.index_name, []) or []
+        results = []
+        for obj in objs:
+            content = obj.get("content", "")
+            score = obj.get("_additional", {}).get("certainty", 0)
+            # Use langchain Document for consistency
+            results.append((Document(page_content=content, metadata={}), score))
+        return results
+
+def setup_langchain_vectorstore():
+    client = setup_weaviate_client()
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-ada-002",
+        openai_api_key=os.getenv("OPENAI_API_KEY")
+    )
+    # Return custom wrapper for query benchmarking
+    return LangchainWeaviateWrapper(
+        client=client,
+        embeddings=embeddings,
+        index_name="PaulGrahamEssay"
+    )

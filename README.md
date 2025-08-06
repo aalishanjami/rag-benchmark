@@ -13,19 +13,13 @@ This project benchmarks RAG (Retrieval-Augmented Generation) using LangChain, We
    ```bash
    export OPENAI_API_KEY="your-api-key-here"
    ```
+4. (Optional) To run the Haystack pipeline, install additional dependencies:
+   ```bash
+   pip install farm-haystack[weaviate,preprocessing] sentence-transformers
+   ```
 
 ## Running the Benchmark
 To run the benchmark, execute:
 ```bash
 python run_benchmark.py
 ```
-You can choose to install/update dependencies when prompted.
-
-## Notes
-- The benchmark currently uses a reduced set of 3 essays to minimize embedding costs.
-- The metrics calculated include:
-  - Index Build Time
-  - Query Latency
-  - Precision@K / Recall@K
-  - Memory Footprint
-  - Disk Usage
