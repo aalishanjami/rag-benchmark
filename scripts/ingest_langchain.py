@@ -50,6 +50,8 @@ class IngestionMetrics:
             "document_count": getattr(self, 'document_count', 0),
             "chunk_count": getattr(self, 'chunk_count', 0),
             "index_size_mb": getattr(self, 'index_size_mb', 0),
+            "vector_bytes_estimate_mb": getattr(self, 'vector_bytes_estimate_mb', 0),
+            "disk_usage_mb": getattr(self, 'disk_usage_mb', 0),
             "peak_memory_mb": self.peak_memory,
             "memory_increase_mb": self.peak_memory - self.start_memory,
             "lines_of_code": count_lines_of_code(),
@@ -150,6 +152,27 @@ def ingest_with_langchain(essays_dir: str, metrics: IngestionMetrics):
         metrics.update_peak_memory()
     
     index_size = calculate_index_size(client, "PaulGrahamEssay")
+    # Estimate vector bytes based on object count
+    try:
+        agg = client.query.aggregate("PaulGrahamEssay").with_meta_count().do()
+        count = agg['data']['Aggregate']["PaulGrahamEssay"][0]['meta']['count']
+        vector_bytes_estimate_mb = (count * 1536 * 4) / (1024 * 1024)
+    except Exception:
+        vector_bytes_estimate_mb = 0.0
+    metrics.vector_bytes_estimate_mb = vector_bytes_estimate_mb
+    # Optional actual disk usage if WEAVIATE_DATA_DIR is provided
+    data_dir = os.getenv("WEAVIATE_DATA_DIR")
+    disk_usage_mb = 0.0
+    if data_dir and Path(data_dir).exists():
+        total = 0
+        for root, _dirs, files in os.walk(data_dir):
+            for f in files:
+                try:
+                    total += (Path(root) / f).stat().st_size
+                except Exception:
+                    pass
+        disk_usage_mb = total / (1024 * 1024)
+    metrics.disk_usage_mb = disk_usage_mb
     metrics.finish_tracking(index_size)
     
     print("Ingestion completed. Index size: {:.1f} MB".format(index_size))
@@ -189,9 +212,11 @@ def main():
         print("INGESTION COMPLETED")
         print("=" * 50)
         print(f"Time: {metrics.get_duration():.2f} seconds")
-        print(f"Documents: {len(list(essays_dir.glob('*.md')))}")
-        print(f"Chunks: {metrics.to_dict()['chunk_count']}")
-        print(f"Index size: {index_size:.1f} MB")
+        print(f"Documents: {metrics.document_count}")
+        print(f"Chunks: {metrics.chunk_count}")
+        print(f"Index size (approx): {index_size:.1f} MB | Vector bytes est.: {metrics.vector_bytes_estimate_mb:.1f} MB")
+        if getattr(metrics, 'disk_usage_mb', 0) > 0:
+            print(f"Disk usage (WEAVIATE_DATA_DIR): {metrics.disk_usage_mb:.1f} MB")
         print(f"Peak memory: {metrics.peak_memory:.1f} MB")
         print(f"Lines of code: {metrics.to_dict()['lines_of_code']}")
         

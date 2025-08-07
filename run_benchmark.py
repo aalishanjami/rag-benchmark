@@ -132,10 +132,26 @@ def main():
             print(f"📄 {result_file}")
     
     print("\n🎉 Benchmark pipeline completed successfully!")
-    print("\nNext steps:")
-    print("  - Review results in the results/ directory")
-    print("  - Compare with other frameworks (coming soon)")
-    print("  - Tune parameters for better performance")
+    print("\nDetailed results saved under results/. Consider sharing a summary:")
+    try:
+        import json
+        from pathlib import Path as _Path
+        res_dir = _Path("results")
+        frameworks = ["langchain", "llamaindex", "haystack"]
+        print("\n=== QUICK SUMMARY")
+        for fw in frameworks:
+            qf = res_dir / f"query_metrics_{fw}.json"
+            if qf.exists():
+                data = json.loads(qf.read_text())
+                lat = data.get("latency_stats", {})
+                print(f"[{fw}] QPS: {data.get('queries_per_second', 0):.2f}, avg {lat.get('avg_latency_ms',0):.1f} ms, p95 {lat.get('p95_latency_ms',0):.1f} ms, P@3 {data.get('avg_precision_at_k',0):.3f}, R@3 {data.get('avg_recall_at_k',0):.3f}")
+            ingf = res_dir / f"ingestion_metrics_{fw}.json"
+            if ingf.exists():
+                idata = json.loads(ingf.read_text())
+                print(f"[{fw}] Ingest: {idata.get('ingestion_time_seconds',0):.1f}s, docs {idata.get('document_count',0)}, chunks {idata.get('chunk_count',0)}, peak mem {idata.get('peak_memory_mb',0):.1f} MB, idx est {idata.get('index_size_mb',0):.1f} MB")
+        print("=== END SUMMARY ===\n")
+    except Exception:
+        pass
     
     return 0
 

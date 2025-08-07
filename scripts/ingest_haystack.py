@@ -48,6 +48,8 @@ class IngestionMetrics:
             "ingestion_time_seconds": self.get_duration(),
             "document_count": document_count,
             "index_size_mb": index_size_mb,
+            "vector_bytes_estimate_mb": getattr(self, 'vector_bytes_estimate_mb', 0),
+            "disk_usage_mb": getattr(self, 'disk_usage_mb', 0),
             "peak_memory_mb": self.peak_memory,
             "memory_increase_mb": self.peak_memory - self.start_memory,
             "framework": "haystack"
@@ -145,14 +147,26 @@ def main():
     metrics_ing.update_peak_memory()
     metrics_ing.finish_tracking()
     doc_count = len(docs)
-    # Estimate index size from object count (rough heuristic)
+    # Estimate index size + vector bytes and optional disk usage
     try:
         agg = _wc.query.aggregate("PaulGrahamEssayHaystack").with_meta_count().do()
         count = agg["data"]["Aggregate"]["PaulGrahamEssayHaystack"][0]["meta"]["count"]
-        # Rough estimate: 1536 dims * 4 bytes per float
-        index_size_mb = (count * 1536 * 4) / (1024 * 1024)
+        metrics_ing.vector_bytes_estimate_mb = (count * 1536 * 4) / (1024 * 1024)
+        index_size_mb = metrics_ing.vector_bytes_estimate_mb
     except Exception:
         index_size_mb = 0
+        metrics_ing.vector_bytes_estimate_mb = 0
+    data_dir = os.getenv("WEAVIATE_DATA_DIR")
+    metrics_ing.disk_usage_mb = 0.0
+    if data_dir and Path(data_dir).exists():
+        total = 0
+        for root, _dirs, files in os.walk(data_dir):
+            for f in files:
+                try:
+                    total += (Path(root) / f).stat().st_size
+                except Exception:
+                    pass
+        metrics_ing.disk_usage_mb = total / (1024 * 1024)
     ingestion_metrics = metrics_ing.to_dict(doc_count, index_size_mb)
     ingestion_file = results_dir / "ingestion_metrics_haystack.json"
     with open(ingestion_file, 'w') as f:
@@ -163,6 +177,9 @@ def main():
     print(f"Time: {metrics_ing.get_duration():.2f} seconds")
     print(f"Documents: {doc_count}")
     print(f"Peak memory: {metrics_ing.peak_memory:.1f} MB")
+    print(f"Index size (approx): {index_size_mb:.1f} MB | Vector bytes est.: {metrics_ing.vector_bytes_estimate_mb:.1f} MB")
+    if metrics_ing.disk_usage_mb > 0:
+        print(f"Disk usage (WEAVIATE_DATA_DIR): {metrics_ing.disk_usage_mb:.1f} MB")
     print(f"Results saved to: {ingestion_file}")
 
     # Query Benchmarking
@@ -208,16 +225,12 @@ def setup_haystack_vectorstore():
         port=8080,
         index="PaulGrahamEssayHaystack",
         embedding_dim=1536,
-        recreate_index=True
+        recreate_index=False
     )
-    store.delete_documents()
-    docs = convert_files_to_docs(dir_path=str(Path(__file__).parent.parent / "data" / "essays"), clean_func=clean_wiki_text)
-    store.write_documents(docs)
     retriever = EmbeddingRetriever(
         document_store=store,
         embedding_model="text-embedding-ada-002",
         api_key=os.getenv("OPENAI_API_KEY"),
         use_gpu=False
     )
-    store.update_embeddings(retriever)
     return HaystackVectorStore(retriever)

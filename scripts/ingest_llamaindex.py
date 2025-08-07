@@ -51,6 +51,8 @@ class IngestionMetrics:
             "document_count": document_count,
             "chunk_count": chunk_count,
             "index_size_mb": index_size_mb,
+            "vector_bytes_estimate_mb": getattr(self, 'vector_bytes_estimate_mb', 0),
+            "disk_usage_mb": getattr(self, 'disk_usage_mb', 0),
             "peak_memory_mb": self.peak_memory,
             "memory_increase_mb": self.peak_memory - (self.start_memory or 0),
             "framework": "llamaindex",
@@ -176,6 +178,26 @@ def main():
     metrics.finish_tracking()
 
     index_size_mb = _estimate_index_size_mb(client, class_name)
+    # Estimate vector bytes
+    try:
+        agg = client.query.aggregate(class_name).with_meta_count().do()
+        count = agg["data"]["Aggregate"][class_name][0]["meta"]["count"]
+        metrics.vector_bytes_estimate_mb = (count * 1536 * 4) / (1024 * 1024)
+    except Exception:
+        metrics.vector_bytes_estimate_mb = 0.0
+    # Optional disk usage via WEAVIATE_DATA_DIR
+    data_dir = os.getenv("WEAVIATE_DATA_DIR")
+    metrics.disk_usage_mb = 0.0
+    if data_dir and Path(data_dir).exists():
+        total = 0
+        for root, _dirs, files in os.walk(data_dir):
+            for f in files:
+                try:
+                    total += (Path(root) / f).stat().st_size
+                except Exception:
+                    pass
+        metrics.disk_usage_mb = total / (1024 * 1024)
+
     results = metrics.to_dict(document_count=len(documents), chunk_count=len(nodes), index_size_mb=index_size_mb)
 
     out_file = results_dir / "ingestion_metrics_llamaindex.json"
@@ -188,7 +210,9 @@ def main():
     print(f"Time: {metrics.get_duration():.2f} seconds")
     print(f"Documents: {len(documents)}")
     print(f"Chunks: {len(nodes)}")
-    print(f"Index size: {index_size_mb:.1f} MB")
+    print(f"Index size (approx): {index_size_mb:.1f} MB | Vector bytes est.: {metrics.vector_bytes_estimate_mb:.1f} MB")
+    if metrics.disk_usage_mb > 0:
+        print(f"Disk usage (WEAVIATE_DATA_DIR): {metrics.disk_usage_mb:.1f} MB")
     print(f"Peak memory: {metrics.peak_memory:.1f} MB")
     print(f"Results saved to: {out_file}")
 
