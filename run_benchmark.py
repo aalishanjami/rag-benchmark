@@ -81,6 +81,17 @@ def main():
         "LangChain query benchmarking"
     ):
         return 1
+
+    # Step 3b: Run LlamaIndex ingestion
+    if not run_command("python scripts/ingest_llamaindex.py", "LlamaIndex data ingestion"):
+        return 1
+
+    # Step 3c: Run LlamaIndex query benchmarking
+    if not run_command(
+        "python scripts/query_benchmark.py --framework llamaindex --top_k 3",
+        "LlamaIndex query benchmarking"
+    ):
+        return 1
     # Step 4: Prepare Haystack virtual environment
     if not Path(".venv-haystack").exists():
         if not run_command(

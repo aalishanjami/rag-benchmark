@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run query benchmarks across frameworks.")
     parser.add_argument(
         "--framework",
-        choices=["langchain", "haystack"],
+        choices=["langchain", "haystack", "llamaindex"],
         required=True,
         help="Which framework to benchmark",
     )
@@ -30,6 +30,9 @@ def main():
     if args.framework == "langchain":
         from ingest_langchain import setup_langchain_vectorstore
         vectorstore = setup_langchain_vectorstore()
+    elif args.framework == "llamaindex":
+        from ingest_llamaindex import setup_llamaindex_vectorstore
+        vectorstore = setup_llamaindex_vectorstore()
     else:
         from ingest_haystack import setup_haystack_vectorstore
         vectorstore = setup_haystack_vectorstore()

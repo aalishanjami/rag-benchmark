@@ -145,7 +145,14 @@ def main():
     metrics_ing.update_peak_memory()
     metrics_ing.finish_tracking()
     doc_count = len(docs)
-    index_size_mb = 0  # Weaviate manages storage internally
+    # Estimate index size from object count (rough heuristic)
+    try:
+        agg = _wc.query.aggregate("PaulGrahamEssayHaystack").with_meta_count().do()
+        count = agg["data"]["Aggregate"]["PaulGrahamEssayHaystack"][0]["meta"]["count"]
+        # Rough estimate: 1536 dims * 4 bytes per float
+        index_size_mb = (count * 1536 * 4) / (1024 * 1024)
+    except Exception:
+        index_size_mb = 0
     ingestion_metrics = metrics_ing.to_dict(doc_count, index_size_mb)
     ingestion_file = results_dir / "ingestion_metrics_haystack.json"
     with open(ingestion_file, 'w') as f:

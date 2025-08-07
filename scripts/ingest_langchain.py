@@ -47,8 +47,8 @@ class IngestionMetrics:
     def to_dict(self) -> dict:
         return {
             "ingestion_time_seconds": self.get_duration(),
-            "document_count": 0,
-            "chunk_count": 0,
+            "document_count": getattr(self, 'document_count', 0),
+            "chunk_count": getattr(self, 'chunk_count', 0),
             "index_size_mb": getattr(self, 'index_size_mb', 0),
             "peak_memory_mb": self.peak_memory,
             "memory_increase_mb": self.peak_memory - self.start_memory,
@@ -121,11 +121,13 @@ def ingest_with_langchain(essays_dir: str, metrics: IngestionMetrics):
     
     print(f"Loading documents from: {essays_dir}")
     documents = load_documents(essays_dir)
-    print(f"Loaded {len(documents)} documents")
+    metrics.document_count = len(documents)
+    print(f"Loaded {metrics.document_count} documents")
     
     print("Chunking documents...")
     chunks = chunk_documents(documents)
-    print(f"Created {len(chunks)} chunks")
+    metrics.chunk_count = len(chunks)
+    print(f"Created {metrics.chunk_count} chunks")
     
     embeddings = OpenAIEmbeddings(
         model="text-embedding-ada-002",
